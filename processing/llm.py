@@ -1,8 +1,17 @@
 import requests
 import json
 import os
+import re 
+from google import genai
 
-url = "http://localhost:5000/predict"
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Explain how AI works in a few words"
+)
+print(response.text)
+
 
 # Define the prompt template
 template = """
@@ -11,8 +20,7 @@ Voici une annonce brute :
 
 {annonce}
 
-Analyse-la et renvoie un JSON avec les champs suivants :
-
+Analyse-la et renvoie **uniquement du JSON valide** avec les champs suivants :
 - titre
 - entreprise
 - domaine
@@ -26,34 +34,36 @@ Analyse-la et renvoie un JSON avec les champs suivants :
 - date_pub
 - lien
 
-Réponds uniquement avec du JSON valide, sans texte ou formatage additionnel.
+Réponds uniquement avec du JSON valide. Ne mets aucun texte ou commentaire.
+Si un champ est absent, mets-le à null.
 """
+
 
 def structure_offer(raw_offer: dict) -> dict:
     raw_text = raw_offer.get("raw_text", "")
-    if not raw_text:
-        return {"error": "Input dictionary does not contain a 'raw_text' field or it is empty."}
-
-    # Fill the template with the annonce
-    prompt_text = template.replace("{annonce}", raw_text[:2000])  # truncate if needed
+    raw_text = re.sub(r"\s+", " ", raw_text.replace("\t", " ").replace("\n", " ")).strip() # Text cleaning
+    prompt = template.format(annonce=raw_text)
 
     try:
-        print(f"➡️ Sending request to local FLAN-T5 for: '{raw_text[:70]}...'")
-        response = requests.post(url, json={"text": prompt_text})
+        print(f"➡️ Sending request to Gemini for: '{raw_text[:70]}...'")
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
 
-        if response.status_code != 200:
-            raise Exception(f"Request failed with status {response.status_code}: {response.text}")
+        data = json.loads(response.text)  # parse Gemini output
 
-        result_text = response.json().get("result", "")
-        cleaned_result = result_text.strip().replace("```json", "").replace("```", "").strip()
-
-        structured_data = json.loads(cleaned_result)
-        print("✅ Successfully parsed JSON from the response!")
-        return structured_data
+        # Ensure all fields exist
+        fields = ["titre", "entreprise", "domaine", "missions", "niveau_exigé",
+                  "compétences", "lieu", "durée", "rémunération", "pré-embauche",
+                  "date_pub", "lien"]
+        parsed = {k: data.get(k, None) for k in fields}
+        print("✅ Data received")
+        return parsed
 
     except json.JSONDecodeError:
-        print(f"❌ JSON DECODE ERROR: The model's response was not valid JSON.")
-        return {"error": "LLM response was not valid JSON.", "raw_response": result_text, "original_text": raw_text}
+        print("❌ Gemini returned invalid JSON")
+        return None
     except Exception as e:
-        print(f"❌ UNEXPECTED ERROR: {e}")
-        return {"error": str(e), "original_text": raw_text}
+        print("❌ UNEXPECTED ERROR:", e)
+        return None

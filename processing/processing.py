@@ -1,6 +1,6 @@
 import json
-from processing.llm import structure_offer
-import os
+from llm import structure_offer
+import os, re 
 
 raw_path = "/Users/mac/Documents/Projects/internship_analysis/data/raw/stages.json"
 structured_path = "/Users/mac/Documents/Projects/internship_analysis/data/structured/stages_structured.jl"

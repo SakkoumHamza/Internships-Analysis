@@ -1,6 +1,2 @@
 scrapy
-langchain 
-langchain-community 
-langchain-core 
-huggingface_hub
-transformers
+google

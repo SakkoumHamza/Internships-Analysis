@@ -1,5 +1,4 @@
-
-import scrapy
+import scrapy 
 
 class StagesSpider(scrapy.Spider):
     name = "hello_work"
@@ -7,6 +6,20 @@ class StagesSpider(scrapy.Spider):
     start_urls = [
         "https://www.hellowork.com/fr-fr/emploi/recherche.html?k=&k_autocomplete=&l=&l_autocomplete=&st=relevance&c=Stage&cod=all&d=all"
     ]
+
+    def clean_text(self,text: str) -> str:
+            import re
+            if not text:
+                return ""
+            
+            # Replace tabs and newlines with a space
+            text = text.replace("\t", " ").replace("\n", " ")
+            
+            # Collapse multiple spaces into one
+            text = re.sub(r"\s+", " ", text)
+            
+            # Strip leading/trailing spaces
+            return text.strip()
 
     def parse(self, response):
         cards = response.css("div.tw-h-full.tw-relative.tw-flex.tw-flex-col")  # chaque offre est dans une balise article
@@ -29,8 +42,9 @@ class StagesSpider(scrapy.Spider):
         else:
             date = None
         full_text = " ".join(response.css("div.tw-flex.tw-flex-col *::text").getall()).strip()
+        text = clean_text(full_text)
         yield {
             "date_pub":date,
             "url": response.url,
-            "raw_text": full_text
+            "raw_text": text
         }
